@@ -27,17 +27,17 @@ model_path = os.path.join(model_dir,'model.pt')
 
 
 
-#data_dir = '../../data/data_med/'
-data_dir = '../../data/data2_small/'
+data_dir = '../../data/data_med/'
+#data_dir = '../../data/data2_small/'
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '7'
+os.environ['CUDA_VISIBLE_DEVICES'] = '6'
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 n_epochs = 10
 
 
 def get_files_and_labels(tvt):
-    dirs = ['original_resize/']
+    dirs = ['original_resized/']
     for model in ['resnet50','vgg16']:
         dirs += [f'{model}_PGD_ns_{n}_ss_{s}/' for n in [8,12,16] for s in [1,3]]
     all_files = [glob(data_dir + d + f'{tvt}/*/*.png') for d in dirs]

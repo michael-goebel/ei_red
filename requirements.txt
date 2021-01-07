@@ -4,7 +4,8 @@ torchvision == 0.8.2
 
 advertorch == 0.2.3
 
-
+scipy==1.5.4
 
 matplotlib == 3.3.3
+tqdm
 
