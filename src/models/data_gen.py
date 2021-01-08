@@ -56,9 +56,14 @@ class ToTensor:
 
 class REDDataset(torch.utils.data.Dataset):
 
-    def __init__(self,fnames,labels,transform=None):
-        self.fnames = fnames
-        self.labels = labels
+    def __init__(self,fnames,labels,transform=None,debug=False):
+        if debug:
+            inds = np.random.choice(len(fnames),size=64)
+            self.fnames = [fnames[i] for i in inds]
+            self.labels = [labels[i] for i in inds]
+        else:
+            self.fnames = fnames
+            self.labels = labels
         self.transform = transform
         self.n_classes = np.max(labels) + 1
 

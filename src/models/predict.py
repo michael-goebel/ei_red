@@ -9,7 +9,7 @@ from glob import glob
 import os, sys
 from tqdm import tqdm
 from time import time
-
+import numpy as np
 
 assert len(sys.argv) == 3, 'Run with dataset as first arg and model type as second, ex: python train.py data_med laplace'
 
@@ -23,15 +23,14 @@ if not os.path.exists(model_dir):
 model_path = os.path.join(model_dir,'model.pt')
 model_hist = os.path.join(model_dir,'hist.txt')
 
-debug = False
-use_pbar = False
+debug = True
+use_pbar = True
 
 data_dir = '../../data/data_med/'
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '7'
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-n_epochs = 20
 
 
 def get_files_and_labels(tvt):
@@ -76,67 +75,57 @@ if model_type == 'co_occur':
     model.conv1.weight.data = new_weights
 
 
+model.load_state_dict(torch.load(model_path))
+
+
 model = model.to(device)
 
 
-def run_model(model,device,dg,optimizer,train,use_pbar):
-
-    if train: model.train()
-    else: model.eval()
+def run_model(model,device,dg,use_pbar):
 
     if use_pbar: pbar = tqdm(total=len(dg_tr))
 
     cum_loss = 0
     cum_acc = 0
 
-    for X,y in dg:
+    predictions = np.empty((len(dg.dataset.fnames),n_classes),dtype=np.float32)
+    gts = np.empty(len(dg.dataset.fnames))
+
+    for i,(X,y) in enumerate(dg):
         X, y = X.to(device), y.to(device)
-        if train: optimizer.zero_grad()
         output = model(X)
         loss = nn.CrossEntropyLoss()(output,y)
-        if train: loss.backward()
-        if train: optimizer.step()
         cum_loss += float(loss)
         cum_acc += float(torch.mean((torch.argmax(output,1)==y).float()))
+        
+        predictions[bs*i:bs*(i+1)] = output.detach().cpu().numpy()[:,:n_classes]
+        gts[bs*i:bs*(i+1)] = y.detach().cpu().numpy()
+
         if use_pbar: 
-            pbar.set_description(f'{"TRAIN" if train else "VAL  "} - Loss: {cum_loss/(i+1):0.3f}, Acc: {cum_acc/(i+1):0.3f}')
+            pbar.set_description(f'Loss: {cum_loss/(i+1):0.3f}, Acc: {cum_acc/(i+1):0.3f}')
             pbar.update(1)
 
     if use_pbar: pbar.close()
 
-    return cum_loss/len(dg), cum_acc/len(dg)
+    return cum_loss/len(dg), cum_acc/len(dg), predictions, gts
 
 
 
 
-optimizer = optim.Adam(model.parameters())
-
-best_val_loss = float('inf')
-cum_out_str = str()
-
-for i in range(n_epochs):
-    t1 = time()
-    print(f'\nEPOCH {i+1} of {n_epochs}')
-    tr_loss, tr_acc = run_model(model,device,dg_tr,optimizer,train=True,use_pbar=use_pbar)
-    va_loss, va_acc = run_model(model,device,dg_va,optimizer,train=False,use_pbar=use_pbar)
-    
+for dg, name in [(dg_tr,'train'),(dg_va,'val'),(dg_te,'test')]:
 
 
-    out_str = f'Epoch {i+1}: {tr_loss:0.4f} {tr_acc:0.4f} {va_loss:0.4f} {va_acc:0.4f}'
-    print(out_str)
-    cum_out_str += out_str + '\n'
+    loss, acc, preds, gts = run_model(model,device,dg,use_pbar=True)
 
 
-    t2 = time()
-    if not use_pbar: print(f'{t2-t1:0.2f} seconds')
 
-    if va_loss < best_val_loss:
-        best_val_loss = va_loss
-        torch.save(model.state_dict(),model_path)
+    this_dir = os.path.join(model_dir,name)
+    if not os.path.exists(this_dir): os.mkdir(this_dir)
 
-
-with open(model_hist,'w+') as f: f.write(cum_out_str)
-
+    np.save(os.path.join(this_dir,'outputs.npy'),preds)
+    np.save(os.path.join(this_dir,'gts.npy'),gts)
+    with open(os.path.join(this_dir,'fnames.txt'),'w+') as f:
+        f.write('\n'.join(dg.dataset.fnames))
 
 
 
