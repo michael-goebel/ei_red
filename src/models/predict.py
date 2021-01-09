@@ -4,8 +4,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import torch.optim as optim
-from data_gen import CoOccur, Laplace, Normalize, ToTensor, REDDataset
-from glob import glob
+#from data_gen import CoOccur, Laplace, Normalize, ToTensor, REDDataset
+#from glob import glob
 import os, sys
 from tqdm import tqdm
 from time import time

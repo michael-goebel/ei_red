@@ -14,9 +14,9 @@ def co_occur_unit(X,L=256):
 # Compte vertical and horizontal co-occurrence histograms for each RGB channel
 # Output is of shape (256,256,6), with the channels ordered Rv, Gv, Bv, Rh, Gh, Bh
 def co_occur(X,L=256):
-    assert len(X.shape) == 3, 'Only accepts rectangular matrices'
-    assert X.shape[2] == 3, 'Input must be 3 channel RGB'
-    assert np.issubdtype(X.dtype,np.integer), 'Only accepts integer inputs'
+    assert len(X.shape) == 3, f'Only accepts rectangular matrices, shape was {X.shape}'
+    assert X.shape[2] == 3, f'Input must be 3 channel RGB, shape was {X.shape}'
+    assert np.issubdtype(X.dtype,np.integer), f'Only accepts integer inputs, dtype was {X.dtype}'
     assert X.min() >= 0, 'Input must be non-negative'
 
     return np.dstack([co_occur_unit(img[:,:,c],L) for img in [X,X.transpose((1,0,2))] for c in range(3)])
