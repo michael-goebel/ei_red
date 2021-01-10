@@ -16,7 +16,7 @@ n_cpu = 4
 assert len(sys.argv) == 4, 'Run with dataset as first arg and model type as second and gpu as third, ex: python train.py data_med laplace 0'
 
 model_type = sys.argv[2]
-assert model_type in {'laplace','co_occur'}
+assert model_type in {'laplace','co_occur', 'direct'}
 
 os.environ['CUDA_VISIBLE_DEVICES'] = sys.argv[3]
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
