@@ -119,5 +119,36 @@ def run_model(model,device,dg,optimizer=None,use_pbar=True):
 
 
 
+if __name__ == '__main__':
+
+    from PIL import Image
+    
+    f_list = get_all_files('train')
+    
+    #Image.open(f_list[0]).save('output.png')
+
+
+    X = np.array(Image.open(f_list[0])).astype(float)
+
+    Y = Laplace()(X)
+
+    #Y = CoOccur()(X)[:,:,0]
+    #print(Y.shape)
+    #X_out = np.zeros((256,256,3),dtype='uint8')
+    #Y = np.log(1+Y)
+    #Y *= 255/Y.max()
+    
+    Y = 127*Y/np.abs(Y).max() + 128
+    
+
+    #X_out[:,:,0] = Y.astype('uint8')
+
+    #Image.fromarray(X_out).save('output.png')
+    
+    Image.fromarray(Y.astype('uint8')).save('output.png')
+
+    #plt.imshow(X)
+    #plt.show()
+
 
 

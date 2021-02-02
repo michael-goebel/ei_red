@@ -65,30 +65,33 @@ def conf_mtx(outputs,names,labels):
     y_pred = np.argmax(outputs,1)
     return np.bincount(L*labels[mask]+y_pred[mask],minlength=L**2).reshape((L,L))
 
-
+"""
 def conf_mtx_w_merges(merges,outputs,names,labels):
-
     mask = labels >= 0
     labels_q = labels[mask]
     output_q = outputs[mask]
-
-
     L = merges.max()+1
     new_output = np.zeros((output_q.shape[0],L))
     new_labels = merges[labels_q]
-
-    for i, l in enumerate(merges):
         new_output[:,l] += np.exp(output_q[:,i])
-
     y_pred = np.argmax(new_output,1)
     conf_mtx = np.bincount(new_labels*L+y_pred,minlength=L**2).reshape((L,)*2).astype(float)
-    
     conf_mtx /= conf_mtx.sum(1)[:,None]
     return conf_mtx
-    
+"""    
 
+def conf_mtx_w_merges(merges,outputs,names,labels):
+    mask = labels >= 0
+    labels_q = labels[mask]
+    output_q = outputs[mask]
+    L = merges.max() + 1
+    pred = np.argmax(output_q,1)
+    new_preds = merges[pred]
+    new_labels = merges[labels_q]
+    conf_mtx = np.bincount(new_labels*L+new_preds,minlength=L**2).reshape((L,L)).astype(float)
+    conf_mtx /= conf_mtx.sum(1)[:,None]
+    return conf_mtx, np.mean(np.diag(conf_mtx))
 
-    #pass
 
 
 def conf_mtx_diff_models(outputs,names,labels):
@@ -103,6 +106,23 @@ def conf_mtx_diff_models(outputs,names,labels):
     return conf_mtx_w_merges(merges,outputs,names,labels), names
 
 
+
+def conf_mtx_diff_attack_and_model(outputs,names,labels):
+
+    merges = -1*np.ones(outputs.shape[1],dtype=np.int64)
+    for i,l in enumerate(label2name):
+        if i == 0: merges[i] = 0
+        if l.split('_')[0] == 'resnet50':
+            if l.split('_')[1] == 'FGSM': merges[i] = 1
+            if l.split('_')[1] == 'PGD': merges[i] = 2
+        else:
+            if l.split('_')[1] == 'FGSM': merges[i] = 3
+            if l.split('_')[1] == 'PGD': merges[i] = 4
+    names = ['orig','resnet_FGSM','resnet_PGD','vgg_FGSM','vgg_PGD']
+    return conf_mtx_w_merges(merges,outputs,names,labels), names
+
+
+
 def conf_mtx_diff_attacks(outputs,names,labels):
 
     merges = -1*np.ones(outputs.shape[1],dtype=np.int64)
@@ -115,11 +135,28 @@ def conf_mtx_diff_attacks(outputs,names,labels):
     return conf_mtx_w_merges(merges,outputs,names,labels), names
 
 
+def conf_mtx_binary(outputs,names,labels):
+    merges = np.ones(outputs.shape[1],dtype=np.int64)
+    merges[0] = 0
+    return conf_mtx_w_merges(merges,outputs,names,labels)
+
+
 print('stats estimation')
 for model in ['vgg16','resnet50']:
     for args in [[model,'FGSM','ss'],[model,'PGD','ss'],[model,'PGD','ns']]:
         print(args)
         print(get_stats(*args,outputs,names,labels))
+
+for args in [[model,'FGSM','ss'],[model,'PGD','ss'],[model,'PGD','ns']]:
+    print('\n\n')
+    mse = 0
+    for model in ['vgg16','resnet50']:
+        print(args)
+        stats = get_stats(*args,outputs,names,labels)
+        print(stats)
+        mse += stats[-1]
+    print('avg rmse:',np.sqrt(mse/2))
+
 
 print('acc')
 print(get_acc(outputs,names,labels))
@@ -133,6 +170,13 @@ print(conf_mtx_diff_models(outputs,names,labels))
 
 print('diff attacks')
 print(conf_mtx_diff_attacks(outputs,names,labels))
+
+
+print('5 class')
+print(conf_mtx_diff_attack_and_model(outputs,names,labels))
+
+print('binary')
+print(conf_mtx_binary(outputs,names,labels))
 
 
 

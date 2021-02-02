@@ -1,13 +1,14 @@
 import numpy as np
 from utils import label2name
 import scipy.ndimage as ndi
+import sys
 
-
-print(label2name)
 name2label = {v:i for i,v in enumerate(label2name)}
 
 
-input_dir = '../../models/med_co/test/'
+input_dir = f'../../models/{sys.argv[1]}/test/'
+
+#input_dir = '../../models/med_co/test/'
 
 with open(input_dir + 'fnames.txt') as f: fnames = f.read().split('\n')
 
@@ -26,92 +27,133 @@ def get_acc(outputs,names,labels):
     
     
 
+def get_stats(model,attack,param,outputs,names,labels):
+
+    if attack == 'FGSM':
+        names_list = [f'{model}_FGSM_ss_{i}' for i in [1,2,3]]
+    else:
+        names_list = [f'{model}_PGD_ns_{n}_ss_{s}' for n in [8,12,16] for s in [1,2,3]]
+
+    names_set = set(names_list)
+
+    mask = np.array([n in names_set for n in names])
+    label_mask = np.array([l in names_set for l in label2name])
+
+    ind = -1 if param == 'ss' else -3
+
+    gt_vals = np.array([int(n.split('_')[ind]) for n,v in zip(names,mask) if v])
+    vals = np.array([int(n.split('_')[ind]) if v else 0 for n,v in zip(label2name,label_mask)])
+
+    outputs_filt = outputs[mask][:,label_mask]
+    vals_filt = vals[label_mask]
+
+    outputs_filt = np.exp(outputs_filt) / np.exp(outputs_filt).sum(1)[:,None]
+    vals_est = (outputs_filt * vals_filt[None,:]).sum(1)
+    name2arr_idx = {n:i for i,n in enumerate(names_list)}
+    ndi_labels = np.array([name2arr_idx[n] for n,m in zip(names,mask) if m])
+    index = np.arange(len(names_list))
+    avg_vals = ndi.mean(vals_est,ndi_labels,index)
+    mse_vals = ndi.mean((vals_est-gt_vals)**2,ndi_labels,index)
+    
+    return names_list, avg_vals, mse_vals, np.mean(mse_vals)
+
+
+def conf_mtx(outputs,names,labels):
+    mask = labels >= 0
+
+    L = outputs.shape[1]
+    y_pred = np.argmax(outputs,1)
+    return np.bincount(L*labels[mask]+y_pred[mask],minlength=L**2).reshape((L,L))
+
+
+def conf_mtx_w_merges(merges,outputs,names,labels):
+
+    mask = labels >= 0
+    labels_q = labels[mask]
+    output_q = outputs[mask]
+
+
+    L = merges.max()+1
+    new_output = np.zeros((output_q.shape[0],L))
+    new_labels = merges[labels_q]
+
+    for i, l in enumerate(merges):
+        new_output[:,l] += np.exp(output_q[:,i])
+
+    y_pred = np.argmax(new_output,1)
+    conf_mtx = np.bincount(new_labels*L+y_pred,minlength=L**2).reshape((L,)*2).astype(float)
+    
+    conf_mtx /= conf_mtx.sum(1)[:,None]
+    return conf_mtx
+    
+
+
+    #pass
+
+
+def conf_mtx_diff_models(outputs,names,labels):
+
+    merges = -1*np.ones(outputs.shape[1],dtype=np.int64)
+    for i, l in enumerate(label2name):
+        if i == 0: merges[i] = 0
+        if l.split('_')[0] == 'resnet50': merges[i] = 1
+        if l.split('_')[0] == 'vgg16': merges[i] = 2
+
+    names = ['orig', 'resnet50', 'vgg16']
+    return conf_mtx_w_merges(merges,outputs,names,labels), names
+
+
+
+def conf_mtx_diff_attack_and_model(outputs,names,labels):
+
+    merges = -1*np.ones(outputs.shape[1],dtype=np.int64)
+    for i,l in enumerate(label2name):
+        if i == 0: merges[i] = 0
+        if l.split('_')[0] == 'resnet50':
+            if l.split('_')[1] == 'FGSM': merges[i] = 1
+            if l.split('_')[1] == 'PGD': merges[i] = 2
+        else:
+            if l.split('_')[1] == 'FGSM': merges[i] = 3
+            if l.split('_')[1] == 'PGD': merges[i] = 4
+    names = ['orig','resnet_FGSM','resnet_PGD','vgg_FGSM','vgg_PGD']
+    return conf_mtx_w_merges(merges,outputs,names,labels), names
+
+
+
+def conf_mtx_diff_attacks(outputs,names,labels):
+
+    merges = -1*np.ones(outputs.shape[1],dtype=np.int64)
+    for i, l in enumerate(label2name):
+        if i == 0: merges[i] = 0
+        if l.split('_')[1] == 'FGSM': merges[i] = 1
+        if l.split('_')[1] == 'PGD': merges[i] = 2
+
+    names = ['orig', 'FGSM', 'PGD']
+    return conf_mtx_w_merges(merges,outputs,names,labels), names
+
+
+print('stats estimation')
+for model in ['vgg16','resnet50']:
+    for args in [[model,'FGSM','ss'],[model,'PGD','ss'],[model,'PGD','ns']]:
+        print(args)
+        print(get_stats(*args,outputs,names,labels))
+
+print('acc')
 print(get_acc(outputs,names,labels))
 
+print('conf matrix')
+print(conf_mtx(outputs,names,labels))
+print(label2name)
 
-#
-#   resnet50_PGD_ns_8_ss_3
-#
+print('diff model')
+print(conf_mtx_diff_models(outputs,names,labels))
 
-
-def get_pgd_ss_stats(model,outputs,names,labels):
-
-    names_set = set(f'{model}_PGD_ns_{n}_ss_{s}' for n in [8,12,16] for s in [1,2,3])
-
-    mask = np.array([n in names_set for n in names])
-    label_mask = np.array([l in names_set for l in label2name])
-
-    gt_vals = np.array([int(n.split('_')[-1]) for n,v in zip(names,mask) if v])
-    vals = np.array([int(n.split('_')[-1]) if v else 0 for n,v in zip(label2name,label_mask)])
-
-    outputs_filt = outputs[mask][:,label_mask]
-    vals_filt = vals[label_mask]
-
-    outputs_filt = np.exp(outputs_filt) / np.exp(outputs_filt).sum(1)[:,None]
-    vals_est = (outputs_filt * vals_filt[None,:]).sum(1)
-
-    avg_vals = ndi.mean(vals_est,gt_vals,index=[1,2,3])
-    mse_vals = ndi.mean((vals_est-gt_vals)**2,gt_vals,index=[1,2,3])
-
-    names = [l for l in label2name if l in names_set]
-
-    return names, avg_vals, mse_vals
+print('diff attacks')
+print(conf_mtx_diff_attacks(outputs,names,labels))
 
 
-def get_fgsm_stats(model,outputs,names,labels):
-
-    names_set = set([f'{model}_FGSM_ss_{i}' for i in [1,2,3]])
-    mask = np.array([n in names_set for n in names])
-    label_mask = np.array([l in names_set for l in label2name])
-
-    gt_vals = np.array([int(n.split('_')[-1]) for n,v in zip(names,mask) if v])
-    vals = np.array([int(n.split('_')[-1]) if v else 0 for n,v in zip(label2name,label_mask)])
-
-    outputs_filt = outputs[mask][:,label_mask]
-    vals_filt = vals[label_mask]
-
-    outputs_filt = np.exp(outputs_filt) / np.exp(outputs_filt).sum(1)[:,None]
-    vals_est = (outputs_filt * vals_filt[None,:]).sum(1)
-
-    avg_vals = ndi.mean(vals_est,gt_vals,index=[1,2,3])
-    mse_vals = ndi.mean((vals_est-gt_vals)**2,gt_vals,index=[1,2,3])
-    
-    names = [l for l in label2name if l in names_set]
-    
-    return names, avg_vals, mse_vals
-    
-
-print(get_fgsm_stats('vgg16',outputs,names,labels))
-print(get_pgd_ss_stats('vgg16',outputs,names,labels))
-
-
-
-
-
-#for model in ['resnet50', 'pgd']:
-    
-
-
-#print(names[::1000])
-#print(labels[::1000])
-
-
-
-
-#print(label2name)
-#print(fnames[::1000])
-
-
-
-
-
-
-#for model in ['resnet50','vgg16']:
-
-#    pass
-
-
-
+print('5 class')
+print(conf_mtx_diff_attack_and_model(outputs,names,labels))
 
 
 
