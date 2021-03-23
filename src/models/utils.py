@@ -1,12 +1,13 @@
-import torch
-from torchvision.models import resnet50
-from torchvision import transforms
 from glob import glob
-from data_gen import Laplace, CoOccur, Normalize, ToTensor
 
-import torch.nn as nn
 from tqdm import tqdm
 import numpy as np
+import torch, torch.nn as nn
+from torchvision import transforms
+from torchvision.models import resnet50
+
+from data_gen import Laplace, CoOccur, Normalize, ToTensor
+
 
 
 data_dir = '../../data/data_med/'
@@ -14,42 +15,56 @@ data_dir = '../../data/data_med/'
 
 
 
-
-#label2name = [
-
-
 groups = [f'FGSM_ss_{n}' for n in [1,3]]
 groups += [f'PGD_ns_{n}_ss_{s}' for n in [8,16] for s in [1,3]]
 
-label2name = ['original_resized',] + [m + g for m in ['resnet50_','vgg16_'] for g in groups]
+groups_test = [f'FGSM_ss_{n}' for n in [1,2,3]]
+groups_test += [f'PGD_ns_{n}_ss_{s}' for n in [8,12,16] for s in [1,2,3]]
+
+models = ['resnet50_','vgg16_']
+
+#label2name = ['original_resized',] + [m + g for m in ['resnet50_','vgg16_'] for g in groups]
 
 
+label2name = ['original_resized',] + [m + g for m in models for g in groups]
 
 
 def get_files_and_labels(tvt):
     
-    all_files = [glob(data_dir + 'original_resized/' + f'{tvt}/*/*.png'),]
-    groups = [f'FGSM_ss_{n}/' for n in [1,3]]
-    groups += [f'PGD_ns_{n}_ss_{s}/' for n in [8,16] for s in [1,3]]
+    #all_files = [glob(data_dir + 'original_resized/' + f'{tvt}/*/*.png'),]
     
-    all_files += [glob(data_dir + m + g + f'{tvt}/*/*.png') for m in ['resnet50_','vgg16_'] for g in groups]
-
     
+    
+    
+    #groups = [f'FGSM_ss_{n}/' for n in [1,3]]
+    #groups += [f'PGD_ns_{n}_ss_{s}/' for n in [8,16] for s in [1,3]]
+    
+    #all_files += [glob(data_dir + m + g + f'{tvt}/*/*.png') for m in ['resnet50_','vgg16_'] for g in groups]
 
-    print([len(l) for l in all_files])
+    all_sets = ['original_resized/',] + [m + g for m in models for g in groups] 
+    
+    all_files = [glob(data_dir + s + f'{tvt}/*/*.png') for s in all_sets]
+
     label_file_pairs = [(i,f) for i,l in enumerate(all_files) for f in l]
     labels, files = zip(*label_file_pairs)
     return files, labels
 
 
 def get_all_files(tvt):
-    all_files = [glob(data_dir + 'original_resized/' + f'{tvt}/*/*.png'),]
-    groups = [f'FGSM_ss_{n}/' for n in [1,2,3]]
-    groups += [f'PGD_ns_{n}_ss_{s}/' for n in [8,12,16] for s in [1,2,3]]
-    all_files += [glob(data_dir + m + g + f'{tvt}/*/*.png') for m in ['resnet50_','vgg16_'] for g in groups]
-    print([len(l) for l in all_files])
-    all_files = sum(all_files,[])
+    all_sets = ['original_resized/',] + \
+        [m + g for m in models for g in groups_test]
+    
+    all_files = [glob(data_dir + s + f'{tvt}/*/*.png') for s in all_sets]
+    
     return all_files
+    
+    #all_files = [glob(data_dir + 'original_resized/' + f'{tvt}/*/*.png'),]
+    #groups = [f'FGSM_ss_{n}/' for n in [1,2,3]]
+    #groups += [f'PGD_ns_{n}_ss_{s}/' for n in [8,12,16] for s in [1,2,3]]
+    #all_files += [glob(data_dir + m + g + f'{tvt}/*/*.png') for m in ['resnet50_','vgg16_'] for g in groups]
+    #print([len(l) for l in all_files])
+    #all_files = sum(all_files,[])
+    #return all_files
 
 
 
@@ -72,8 +87,11 @@ def load_model(model_type,n_classes,weights_path=None):
     fc_weights = model.fc.weight.clone()
     fc_bias = model.fc.bias.clone()
     model.fc = nn.Linear(2048,n_classes,bias=True)
-    model.fc.weight.data = fc_weights[:n_classes]
-    model.fc.bias.data = fc_bias[:n_classes]
+    #model.fc.weight.data = fc_weights[:n_classes]
+    #model.fc.bias.data = fc_bias[:n_classes]
+
+    model.fc.weight.data = fc_weights
+    model.fc.bias.data = fc_bias
 
 
     if weights_path: model.load_state_dict(torch.load(weights_path))
@@ -110,7 +128,8 @@ def run_model(model,device,dg,optimizer=None,use_pbar=True):
         predictions[bs*i:bs*(i+1)] = output.detach().cpu().numpy()
         gts[bs*i:bs*(i+1)] = y.detach().cpu().numpy()
         if use_pbar:
-            pbar.set_description(f'{"TRAIN" if train else "EVAL "} - Loss: {cum_loss/(i+1):0.3f}, Acc: {cum_acc/(i+1):0.3f}')
+            pbar.set_description(f'{"TRAIN" if train else "EVAL "} - Loss: '\
+                    f'{cum_loss/(i+1):0.3f}, Acc: {cum_acc/(i+1):0.3f}')
             pbar.update(1)
 
     if use_pbar: pbar.close()
@@ -122,33 +141,35 @@ def run_model(model,device,dg,optimizer=None,use_pbar=True):
 if __name__ == '__main__':
 
     from PIL import Image
-    
+    import matplotlib.pyplot as plt
+
     f_list = get_all_files('train')
     
-    #Image.open(f_list[0]).save('output.png')
 
+    X = np.array(Image.open(f_list[0]))
 
-    X = np.array(Image.open(f_list[0])).astype(float)
+    Y1 = Laplace()(X.astype(float))
+    Y1 = 1/2*(1 + Y1/abs(Y1).max())
 
-    Y = Laplace()(X)
-
-    #Y = CoOccur()(X)[:,:,0]
-    #print(Y.shape)
-    #X_out = np.zeros((256,256,3),dtype='uint8')
-    #Y = np.log(1+Y)
-    #Y *= 255/Y.max()
+    Y2 = CoOccur()(X)[:,:,0]
     
-    Y = 127*Y/np.abs(Y).max() + 128
-    
+    Y2 = np.log(1+Y2)
+    Y2 /= Y2.max()
 
-    #X_out[:,:,0] = Y.astype('uint8')
+    fig, axes = plt.subplots(1,3)
 
-    #Image.fromarray(X_out).save('output.png')
-    
-    Image.fromarray(Y.astype('uint8')).save('output.png')
+    titles = ['Input','Laplace','Co Occur']
+    img_list = [X,Y1,Y2]
 
-    #plt.imshow(X)
-    #plt.show()
+    for a, t, x in zip(axes,titles,img_list):
+        a.imshow(x)
+        a.set_title(t)
+
+    fig.tight_layout()
+    plt.show()
+
+
+
 
 
 

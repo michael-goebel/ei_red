@@ -8,7 +8,6 @@ name2label = {v:i for i,v in enumerate(label2name)}
 
 input_dir = f'../../models/{sys.argv[1]}/test/'
 
-#input_dir = '../../models/med_co/test/'
 
 with open(input_dir + 'fnames.txt') as f: fnames = f.read().split('\n')
 
@@ -24,7 +23,6 @@ def get_acc(outputs,names,labels):
     labels_filt = labels[mask]
     y_est = np.argmax(outputs_filt,1)
     return np.mean(y_est==labels_filt)
-    
     
 
 def get_stats(model,attack,param,outputs,names,labels):
@@ -67,28 +65,17 @@ def conf_mtx(outputs,names,labels):
 
 
 def conf_mtx_w_merges(merges,outputs,names,labels):
-
     mask = labels >= 0
     labels_q = labels[mask]
     output_q = outputs[mask]
-
-
-    L = merges.max()+1
-    new_output = np.zeros((output_q.shape[0],L))
+    L = merges.max() + 1
+    pred = np.argmax(output_q,1)
+    new_preds = merges[pred]
     new_labels = merges[labels_q]
-
-    for i, l in enumerate(merges):
-        new_output[:,l] += np.exp(output_q[:,i])
-
-    y_pred = np.argmax(new_output,1)
-    conf_mtx = np.bincount(new_labels*L+y_pred,minlength=L**2).reshape((L,)*2).astype(float)
-    
+    conf_mtx = np.bincount(new_labels*L+new_preds,minlength=L**2).reshape((L,L)).astype(float)
     conf_mtx /= conf_mtx.sum(1)[:,None]
-    return conf_mtx
-    
+    return conf_mtx, np.mean(np.diag(conf_mtx))
 
-
-    #pass
 
 
 def conf_mtx_diff_models(outputs,names,labels):
@@ -132,11 +119,28 @@ def conf_mtx_diff_attacks(outputs,names,labels):
     return conf_mtx_w_merges(merges,outputs,names,labels), names
 
 
+def conf_mtx_binary(outputs,names,labels):
+    merges = np.ones(outputs.shape[1],dtype=np.int64)
+    merges[0] = 0
+    return conf_mtx_w_merges(merges,outputs,names,labels)
+
+
 print('stats estimation')
 for model in ['vgg16','resnet50']:
     for args in [[model,'FGSM','ss'],[model,'PGD','ss'],[model,'PGD','ns']]:
         print(args)
         print(get_stats(*args,outputs,names,labels))
+
+for args in [[model,'FGSM','ss'],[model,'PGD','ss'],[model,'PGD','ns']]:
+    print('\n\n')
+    mse = 0
+    for model in ['vgg16','resnet50']:
+        print(args)
+        stats = get_stats(*args,outputs,names,labels)
+        print(stats)
+        mse += stats[-1]
+    print('avg rmse:',np.sqrt(mse/2))
+
 
 print('acc')
 print(get_acc(outputs,names,labels))
@@ -154,6 +158,47 @@ print(conf_mtx_diff_attacks(outputs,names,labels))
 
 print('5 class')
 print(conf_mtx_diff_attack_and_model(outputs,names,labels))
+
+print('binary')
+print(conf_mtx_binary(outputs,names,labels))
+
+
+
+
+
+def to_latex(X):
+    A = ' & '.join([' '] + [str(i) for i in range(10)])
+    A += ' \\\\\n\\hline\n'
+    X_str = [[f'{v:0.3f}' for v in row] for i,row in enumerate(X)] 
+    A += '\\\\\n'.join([' & '.join([str(i),] + r) for i,r in enumerate(X_str)])
+    return A
+
+
+def latex_conf_mtx(X,labels):
+    labels = [l.replace('_','\\_') for l in labels]
+    labels_h = [l[:l.find('_')] + 'newline ' + l[(l.find('_')+1):] for l in labels]
+    
+    
+    A = ' & '.join([' ',] + labels_h) + ' \\\\\n\\hline\n'
+    
+    
+    
+    X = X.astype(float)
+    X /= X.sum(1)[:,None]
+    X_str = [[f'{v:0.3f}' for v in row] for i,row in enumerate(X)]
+    A += '\\\\\n'.join([' & '.join([l,] + r) for l,r in zip(labels,X_str)])
+    return A
+
+
+C = conf_mtx(outputs,names,labels)
+
+print(latex_conf_mtx(C,label2name))
+
+
+
+
+
+
 
 
 
