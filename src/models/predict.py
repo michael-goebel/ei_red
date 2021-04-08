@@ -13,15 +13,17 @@ bs = 32
 n_cpu = 4
 
 
-assert len(sys.argv) == 4, 'Run with dataset as first arg and model type as second and gpu as third, ex: python train.py data_med laplace 0'
+#assert len(sys.argv) == 4, 'Run with dataset as first arg and model type as second and gpu as third, ex: python train.py data_med laplace 0'
 
-model_type = sys.argv[2]
+assert len(sys.argv) == 3, 'Run with method as the first arg, and GPU ID as the second, ex: python predict.py direct 0'
+
+model_type = sys.argv[1]
 assert model_type in {'laplace','co_occur', 'direct'}
 
-os.environ['CUDA_VISIBLE_DEVICES'] = sys.argv[3]
+os.environ['CUDA_VISIBLE_DEVICES'] = sys.argv[2]
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model_dir = '../../models/' + sys.argv[1]
+model_dir = '../../models/' + model_type
 if not os.path.exists(model_dir):
     os.mkdir(model_dir)
 model_path = os.path.join(model_dir,'model.pt')

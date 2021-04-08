@@ -11,6 +11,7 @@ input_dir = f'../../models/{sys.argv[1]}/test/'
 
 with open(input_dir + 'fnames.txt') as f: fnames = f.read().split('\n')
 
+
 outputs = np.load(input_dir + 'outputs.npy')
 
 names = [f.split('/')[-4] for f in fnames]
@@ -96,7 +97,7 @@ def conf_mtx_diff_attack_and_model(outputs,names,labels):
     merges = -1*np.ones(outputs.shape[1],dtype=np.int64)
     for i,l in enumerate(label2name):
         if i == 0: merges[i] = 0
-        if l.split('_')[0] == 'resnet50':
+        elif l.split('_')[0] == 'resnet50':
             if l.split('_')[1] == 'FGSM': merges[i] = 1
             if l.split('_')[1] == 'PGD': merges[i] = 2
         else:
@@ -111,9 +112,11 @@ def conf_mtx_diff_attacks(outputs,names,labels):
 
     merges = -1*np.ones(outputs.shape[1],dtype=np.int64)
     for i, l in enumerate(label2name):
+        
         if i == 0: merges[i] = 0
-        if l.split('_')[1] == 'FGSM': merges[i] = 1
-        if l.split('_')[1] == 'PGD': merges[i] = 2
+        elif l.split('_')[1] == 'FGSM': merges[i] = 1
+        elif l.split('_')[1] == 'PGD': merges[i] = 2
+
 
     names = ['orig', 'FGSM', 'PGD']
     return conf_mtx_w_merges(merges,outputs,names,labels), names

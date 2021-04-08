@@ -10,7 +10,7 @@ from data_gen import Laplace, CoOccur, Normalize, ToTensor
 
 
 
-data_dir = '../../data/data_med/'
+data_dir = '../../data/'
 
 
 
@@ -23,50 +23,25 @@ groups_test += [f'PGD_ns_{n}_ss_{s}' for n in [8,12,16] for s in [1,2,3]]
 
 models = ['resnet50_','vgg16_']
 
-#label2name = ['original_resized',] + [m + g for m in ['resnet50_','vgg16_'] for g in groups]
-
-
-label2name = ['original_resized',] + [m + g for m in models for g in groups]
+label2name = ['orig',] + [m + g for m in models for g in groups]
 
 
 def get_files_and_labels(tvt):
-    
-    #all_files = [glob(data_dir + 'original_resized/' + f'{tvt}/*/*.png'),]
-    
-    
-    
-    
-    #groups = [f'FGSM_ss_{n}/' for n in [1,3]]
-    #groups += [f'PGD_ns_{n}_ss_{s}/' for n in [8,16] for s in [1,3]]
-    
-    #all_files += [glob(data_dir + m + g + f'{tvt}/*/*.png') for m in ['resnet50_','vgg16_'] for g in groups]
-
-    all_sets = ['original_resized/',] + [m + g for m in models for g in groups] 
-    
-    all_files = [glob(data_dir + s + f'{tvt}/*/*.png') for s in all_sets]
-
+    all_sets = ['orig',] + [m + g for m in models for g in groups] 
+    all_files = [glob(f'{data_dir}{s}/{tvt}/*/*.png') for s in all_sets]
     label_file_pairs = [(i,f) for i,l in enumerate(all_files) for f in l]
     labels, files = zip(*label_file_pairs)
     return files, labels
 
 
 def get_all_files(tvt):
-    all_sets = ['original_resized/',] + \
+    all_sets = ['orig',] + \
         [m + g for m in models for g in groups_test]
-    
-    all_files = [glob(data_dir + s + f'{tvt}/*/*.png') for s in all_sets]
-    
-    return all_files
-    
-    #all_files = [glob(data_dir + 'original_resized/' + f'{tvt}/*/*.png'),]
-    #groups = [f'FGSM_ss_{n}/' for n in [1,2,3]]
-    #groups += [f'PGD_ns_{n}_ss_{s}/' for n in [8,12,16] for s in [1,2,3]]
-    #all_files += [glob(data_dir + m + g + f'{tvt}/*/*.png') for m in ['resnet50_','vgg16_'] for g in groups]
-    #print([len(l) for l in all_files])
-    #all_files = sum(all_files,[])
-    #return all_files
+    all_files = [glob(f'{data_dir}{s}/{tvt}/*/*.png') for s in all_sets]
+    print('num of files', len(all_files))
 
-
+    return sum(all_files,[])
+    
 
 def load_model(model_type,n_classes,weights_path=None):
     if model_type == 'laplace':
@@ -87,12 +62,8 @@ def load_model(model_type,n_classes,weights_path=None):
     fc_weights = model.fc.weight.clone()
     fc_bias = model.fc.bias.clone()
     model.fc = nn.Linear(2048,n_classes,bias=True)
-    #model.fc.weight.data = fc_weights[:n_classes]
-    #model.fc.bias.data = fc_bias[:n_classes]
-
-    model.fc.weight.data = fc_weights
-    model.fc.bias.data = fc_bias
-
+    model.fc.weight.data = fc_weights[:n_classes]
+    model.fc.bias.data = fc_bias[:n_classes]
 
     if weights_path: model.load_state_dict(torch.load(weights_path))
 

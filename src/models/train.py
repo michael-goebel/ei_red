@@ -10,26 +10,26 @@ from data_gen import REDDataset
 
 
 debug = False
-use_pbar = False
+use_pbar = True
 
 bs = 32
 n_cpu = 4
 n_epochs = 20
 
 
-assert len(sys.argv) == 4, 'Run with dataset as first arg and model ' + \
-                           'type as second, gpu as third ex: python ' + \
-                           'train.py data_med laplace 0'
+assert len(sys.argv) == 3, 'Run with method as first arg, and GPU ID' + \
+                           ' as the second. For example: \n' + \
+                           'train.py laplace 0'
 
-model_type = sys.argv[2]
+model_type = sys.argv[1]
 assert model_type in {'laplace','co_occur','direct'}
 
-os.environ['CUDA_VISIBLE_DEVICES'] = sys.argv[3]
+os.environ['CUDA_VISIBLE_DEVICES'] = sys.argv[2]
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model_dir = '../../models/' + sys.argv[1]
+model_dir = f'../../models/{model_type}/'
 if not os.path.exists(model_dir):
-    os.mkdir(model_dir)
+    os.makedirs(model_dir)
 model_path = os.path.join(model_dir,'model.pt')
 model_hist = os.path.join(model_dir,'hist.txt')
 
@@ -37,7 +37,7 @@ model_hist = os.path.join(model_dir,'hist.txt')
 files_tr, labels_tr = get_files_and_labels('train')
 files_va, labels_va = get_files_and_labels('val')
 
-n_classes = torch.max(labels_tr) + 1
+n_classes = max(labels_tr) + 1
 pre_proc, model = load_model(model_type,n_classes)
 
 dg_kwargs = {'shuffle': True, 'batch_size': bs, 'num_workers': n_cpu}
@@ -73,9 +73,5 @@ for i in range(n_epochs):
 
 
 with open(model_hist,'w+') as f: f.write(cum_out_str)
-
-
-
-
 
 

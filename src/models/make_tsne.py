@@ -28,17 +28,8 @@ model_path = os.path.join(model_dir,'model.pt')
 model_hist = os.path.join(model_dir,'hist.txt')
 
 
-
-
-#files_tr, labels_tr = get_files_and_labels('train')
-#files_va, labels_va = get_files_and_labels('val')
-#files_te, labels_te = get_files_and_labels('test')
-
-#n_classes = np.max(labels_tr) + 1
 n_classes = 13
 
-#files_tr = get_all_files('train')
-#files_va = get_all_files('val')
 files_te = get_all_files('test')
 
 
@@ -47,18 +38,9 @@ pre_proc, model = load_model(model_type,n_classes,weights_path=model_path)
 
 dg_kwargs = {'shuffle': True, 'batch_size': bs, 'num_workers': n_cpu}
 
-#
-#dg_tr = DataLoader(REDDataset(files_tr,[0,]*len(files_tr),pre_proc,debug),**dg_kwargs)
-#dg_va = DataLoader(REDDataset(files_va,[0,]*len(files_va),pre_proc,debug),**dg_kwargs)
 dg_te = DataLoader(REDDataset(files_te,[0,]*len(files_te),pre_proc,debug),**dg_kwargs)
 
 model.to(device)
-
-
-#for dg, name in [(dg_tr,'train'),(dg_va,'val'),(dg_te,'test')]:
-
-print(model)
-quit()
 
 
 for dg, name in [(dg_te,'test')]:
